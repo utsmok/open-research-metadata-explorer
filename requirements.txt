@@ -1,0 +1,6 @@
+marimo
+pyalex
+rich
+PyYAML
+semanticscholar
+habanero

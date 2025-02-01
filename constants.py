@@ -1,0 +1,55 @@
+"""
+This module contains constants used in this app.
+"""
+
+COMPANY_ABBREVIATIONS: list[str] = [
+    ' ltd ',
+    ' limited ',
+    ' bv ',
+    ' gmbh ',
+    ' inc ',
+    ' llc ',
+    ' co ',
+    ' corp ',
+    ' corporation ',
+    ' sarl ',
+    ' sa ',
+    ' pte ',
+    ' pty ',
+    ' plc ',
+    ' ag ',
+    ' sl ',
+    ' srl ',
+    ' ag ',
+]
+
+PUBLISHER_NAME_MAPPING = {
+    'elsevier': 'elsevier',
+    'sciencedirect': 'elsevier',
+    'cell press': 'elsevier',
+    'relx group': 'elsevier',
+    'springer': 'springer nature',
+    'nature portfolio': 'springer nature',
+    'nature publishing': 'springer nature',
+    'wiley': 'wiley',
+    'blackwell': 'wiley',
+    'taylor & francis': 'taylor & francis',
+    'taylor and francis': 'taylor & francis',
+    'routledge': 'taylor & francis',
+    'wolters': 'wolters kluwer',
+    'lippincott': 'wolters kluwer',
+    'biomed central': 'biomed central',
+    'bmc': 'biomed central',
+    'biomedcentral': 'biomed central',
+    'sage': 'sage publications',
+    'frontiers': 'frontiers media sa',
+    'ieee': 'ieee',
+    'karger': 'karger',
+    'thieme': 'thieme',
+    'hindawi': 'hindawi',
+    'mdpi': 'mdpi',
+    'plos': 'plos',
+    'public library of science': 'plos',
+    'oxford university press': 'oxford university press',
+    'cambridge university press': 'cambridge university press'
+}

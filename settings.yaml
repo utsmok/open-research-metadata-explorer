@@ -1,0 +1,40 @@
+# The settings file for the Open Research Metadata Explorer.
+# This file is in YAML format.
+
+# This email address will be included in API calls where required or advantageous.
+user_email: "user@example.com"
+
+# Settings for the sources used to retrieve metadata.Format:
+# source_name:
+#   enabled: true/false - required - whether to use the source
+# ... more settings ...
+
+sources:
+  - name: "crossref"
+    enabled: true
+  - name: "openalex"
+    enabled: true
+  - name: "semantic_scholar"
+    enabled: true
+  - name: "datacite"
+    enabled: true
+  - name: "zenodo"
+    enabled: false
+  - name: "openaire"
+    enabled: true
+  - name: "base"
+    enabled: false
+  - name: "core"
+    enabled: false
+  - name: "pubmed"
+    enabled: false
+  - name: "arxiv"
+    enabled: false
+  - name: "openapc"
+    enabled: false
+  - name: "doaj"
+    enabled: false
+  - name: "journal_browser"
+    enabled: false
+  - name: "unpaywall"
+    enabled: true

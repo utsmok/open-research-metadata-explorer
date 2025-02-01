@@ -1,0 +1,19 @@
+[project]
+name = "open-research-metadata-explorer"
+version = "0.1.0"
+description = "A tool that lets you retrieve & view open research metadata for publications, built using Python & marimo, with data from OpenAlex, Crossref, Semantic Scholar, Zenodo, OpenAIRE, DataCite, and more."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "marimo",
+    "pyalex",
+    "rich",
+    "PyYAML",
+    "semanticscholar",
+    "habanero",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "ruff",
+]
