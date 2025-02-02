@@ -38,3 +38,8 @@ sources:
     enabled: false
   - name: "unpaywall"
     enabled: true
+
+openalex_settings:
+  max_retries: 3
+  retry_backoff_factor: 0.1
+  retry_http_codes: [429, 500, 503]

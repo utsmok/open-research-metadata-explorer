@@ -1,31 +1,9 @@
-"""
-This module contains functionality to retrieve data from the various APIs/sources.
-These sources are:
-- Crossref
-- OpenAlex
-- Semantic Scholar
-- Zenodo
-- DataCite
-- OpenAIRE
-
-- ... (more to be added)
-"""
-
-class Harvester:
-    """Base class for harvesters"""
-    ...
-
-    def __init__(self, settings: dict = {}):
-        self.settings = settings
-
+from harvesters.generics import Harvester
 
 class CrossrefHarvester(Harvester):
     """Class to harvest data from the Crossref API using the habanero package"""
     ...
 
-class OpenAlexHarvester(Harvester):
-    """Class to harvest data from the OpenAlex API using the pyalex package"""
-    ...
 
 class SemanticScholarHarvester(Harvester):
     """Class to harvest data from the Semantic Scholar API using the semanticscholar package"""
@@ -82,28 +60,3 @@ class PubmedHarvester(Harvester):
 class ArxivHarvester(Harvester):
     """Class to harvest data from the ArXiv API"""
     ...
-
-
-class HarvesterFactory:
-    """Factory class to create harvesters"""
-    def __init__(self):
-        self.harvesters = {
-            "crossref": CrossrefHarvester,
-            "openalex": OpenAlexHarvester,
-            "semantic_scholar": SemanticScholarHarvester,
-            "zenodo": ZenodoHarvester,
-            "datacite": DataCiteHarvester,
-            "openaire": OpenAIREHarvester,
-            "openapc": OpenAPCHarvester,
-            "core": COREHarvester,
-            "base": BASEHarvester,
-            "pubmed": PubmedHarvester,
-            "arxiv": ArxivHarvester,
-            "unpaywall": UnpaywallHarvester,
-            "journal_browser": JournalBrowserHarvester,
-            "doaj": DOAJHarvester,
-        }
-
-    def create_harvester(self, source: str, settings: dict = {}) -> Harvester:
-        """Create a harvester for the given source"""
-        return self.harvesters.get(source.lower(), Harvester)(settings)

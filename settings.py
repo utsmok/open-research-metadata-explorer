@@ -24,6 +24,7 @@ class Settings:
 
     file_path: str = "settings.yaml"
     user_email: str = "user@example.com"
+    openalex_settings: dict = field(default_factory=dict, init=False)
     raw_settings: dict = field(default_factory=dict, init=False, repr=False)
     sources: list[Source] = field(default_factory=list, init=False)
     def __post_init__(self):
@@ -45,6 +46,11 @@ class Settings:
         for source in self.raw_settings.get("sources", []):
             self.sources.append(Source(**source))
         self.sources = sorted(self.sources, key=lambda x: x.enabled, reverse=True)
+
+        for key, value in self.raw_settings.items():
+            if key == "sources":
+                continue
+            setattr(self, key, value)
 
     def __repr__(self) -> str:
         return f"""
