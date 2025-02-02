@@ -1,9 +1,10 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from settings import Source
 from enum import Enum
 class QueryValueType(Enum):
     """
     Contains all recognized query value types (aka 'field' or 'search field' etc) for searching.
+    Each Harvester class will define a list of valid field names to use for searching, and handle the mapping between these and the actual search fields.
     """
     OPENALEX_ID = "openalex_id"
     OPENAIRE_ID = "openaire_id"
@@ -14,19 +15,25 @@ class QueryValueType(Enum):
     ISSN = "issn"
     PMID = "pmid"
     ID = "id"
+    NAME = "name"
+    # these values below are meant to be used as additional filters
+    PUBLICATION_YEAR = "publication_year"
+    PUBLICATION_DATE = "publication_date"
+    PUBLISHER = "publisher"
+    OA_STATUS = "oa_status"
+    IS_OA = "is_oa"
+    TYPE = "type"
+
+
+
 
 class SearchEntityType(Enum):
     """
     Contains all recognized entity types for searching.
-    Primarily used to add SearchValues through the HarvesterManager class.
+    Each Harvester class will define a list of valid entity types supported by that API,
+    and handle the mapping between these values and the entities / endpoints in the API.
     """
     WORK = "work"
-    ARTICLE = "work"
-    PUBLICATION = "work"
-    CONFERENCE_PROCEEDING = "work"
-    PREPRINT = "work"
-    BOOK = "work"
-    CHAPTER = "work"
     DATASET = "dataset"
     SOFTWARE = "software"
     AUTHOR = "author"
@@ -46,17 +53,23 @@ class SearchEntityType(Enum):
 @dataclass
 class SearchValue:
     """
-    Stores a search value, the type to search for, and which search field to use
+    Stores a search value, the type to search for, and which search field to use.
+    The 'field' and 'entity' fields should be of type QueryValueType and SearchEntityType respectively.
+    If initialized with strings, they are converted to the corresponding Enum entries during init.
+
+    Optionally, additional filters can be added to the search value. This is a list of SearchValue objects that can be used to filter the search results further -- e.g. to filter by year or other metadata.
+    Do not change field or entity values after initialization (for now)
     """
     value: str
-    field: QueryValueType
-    entity: SearchEntityType
+    field: QueryValueType | str
+    entity: SearchEntityType | str
+    additional_filters: list["SearchValue"] = field(default_factory=list)
 
     def __post_init__(self):
         if isinstance(self.field, str):
-            self.field = QueryValueType(self.field.lower())
+            self.field = QueryValueType[self.field.upper()]
         if isinstance(self.entity, str):
-            self.entity = SearchEntityType(self.entity.lower())
+            self.entity = SearchEntityType[self.entity.upper()]
 
 class Harvester:
     """Base class for harvesters"""
@@ -68,7 +81,7 @@ class Harvester:
     default_entity: str = "work"
 
     # stores the mapping between entity types and the corresponding functions or classes used for searching by the implementing class
-    ENTITY_MAPPING: dict[SearchEntityType, any]
+    ENTITY_MAPPING: dict[SearchEntityType, any] = dict()
     # stores the valid field names recognized by the implementing class for searching
     VALID_FIELDNAMES: list[QueryValueType]
     def __init__(self, settings: Source):
@@ -101,7 +114,9 @@ class Harvester:
         else:
             raise ValueError("search_values must be a list of strings, dicts, tuples or SearchValue objects")
 
+        values = [value for value in values if value not in self._search_values]
         self._search_values.extend(values)
+
 
     def _search(self) -> None:
         """Search for the given search values and store the results"""

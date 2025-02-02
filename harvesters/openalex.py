@@ -53,21 +53,30 @@ class OpenAlexHarvester(Harvester):
     """
 
     # maps entity strings to the corresponding pyalex classes used for searching
-    ENTITY_MAPPING: dict[str, BaseOpenAlex] = {
-        "work": Works,
-        "author": Authors,
-        "source": Sources,
-        "publisher": Publishers,
-        "institution": Institutions,
-        "funder": Funders,
-        "topic": Topics,
-        "subfield": Subfields,
-        "field": Fields,
-        "domain": Domains,
+    ENTITY_MAPPING: dict[SearchEntityType, BaseOpenAlex] = {
+        SearchEntityType.WORK: Works,
+        SearchEntityType.AUTHOR: Authors,
+        SearchEntityType.SOURCE: Sources,
+        SearchEntityType.PUBLISHER: Publishers,
+        SearchEntityType.INSTITUTION: Institutions,
+        SearchEntityType.FUNDER: Funders,
+        SearchEntityType.TOPIC: Topics,
+        SearchEntityType.SUBFIELD: Subfields,
+        SearchEntityType.FIELD: Fields,
+        SearchEntityType.DOMAIN: Domains,
     }
 
     # field names recognized by this class for searching
-    VALID_FIELDNAMES: list[QueryValueType] = [QueryValueType('openalex_id'), QueryValueType('doi'), QueryValueType('ror'), QueryValueType('orcid'), QueryValueType('id')]
+    VALID_FIELDNAMES: list[QueryValueType] = [
+        QueryValueType.OPENALEX_ID,
+        QueryValueType.DOI,
+        QueryValueType.ROR,
+        QueryValueType.ORCID,
+        QueryValueType.ID,
+        QueryValueType.NAME,
+        QueryValueType.ISSN,
+        QueryValueType.PMID,
+        ]
 
     def __init__(self, settings):
         super().__init__(settings)
@@ -92,7 +101,9 @@ class OpenAlexHarvester(Harvester):
         pyalex.config.max_retries = SETTINGS.openalex_settings.get("max_retries", 3)
         pyalex.config.retry_backoff_factor = SETTINGS.openalex_settings.get("retry_backoff_factor", 0.1)
         pyalex.config.retry_http_codes = SETTINGS.openalex_settings.get("retry_http_codes", [429, 500, 503])
-
+        self.max_amount_of_pages = 10
+        self.results_per_page = 200
+        self.max_results_per_query = self.max_amount_of_pages * self.results_per_page
     def _validate_search_values(self) -> bool:
         """
         Check if self_search_values is not empty. Then:
@@ -103,7 +114,7 @@ class OpenAlexHarvester(Harvester):
             print("No search values set")
             return False
         for search_value in self._search_values:
-            if search_value.entity.value not in self.ENTITY_MAPPING:
+            if search_value.entity not in self.ENTITY_MAPPING:
                 print(f'Invalid entity: {search_value.entity}')
                 return False
             if any([not search_value.field, not search_value.value]):
@@ -112,79 +123,113 @@ class OpenAlexHarvester(Harvester):
         return True
 
 
-    def _search(self):
-        def construct_query(idlist:str, field:QueryValueType, entity_type:str):
-            print(f'construct_query called with:\n idlist: {idlist}\n field: {field}\n entity_type: {entity_type}')
-            if field == QueryValueType('id') or field == QueryValueType('openalex_id'):
-                print(' selected filter field = openalex_id')
-                return self.ENTITY_MAPPING[entity_type]().filter(openalex_id=idlist)
-            elif field == QueryValueType('doi'):
-                print(' selected filter field = doi')
-                return self.ENTITY_MAPPING[entity_type]().filter(doi=idlist)
-            elif field == QueryValueType('ror'):
-                if entity_type == 'work':
-                    print(' selected filter field => work: institutions.ror')
-                    return self.ENTITY_MAPPING[entity_type]().filter(institutions={'ror':idlist})
-                elif entity_type == 'author':
-                    print(' selected filter field => author: affiliations.institution.ror')
-                    return self.ENTITY_MAPPING[entity_type]().filter(affiliations={'institution':{'ror':idlist}})
-                elif entity_type == 'institution' or entity_type == 'publisher' or entity_type == 'funder':
-                    print(f' selected filter field => {entity_type}: ror')
-                    return self.ENTITY_MAPPING[entity_type]().filter(ror=idlist)
-            elif field == QueryValueType('orcid'):
-                print(' selected filter field = orcid')
-                return self.ENTITY_MAPPING[entity_type]().filter(orcid=idlist)
 
+
+    def _construct_query(self, idlist:str, field:QueryValueType, entity_type:SearchEntityType) -> BaseOpenAlex:
+        """
+        This function constructs a query based on the given idlist, field, and entity_type.
+        This is required to handle nested filter fields & to set the correct filters for a QueryValueType.
+        For non-nested query fields that match QueryValueType values, we can construct it directly.
+        """
+        print(f'_construct_query called with:\n idlist: {idlist}\n field: {field}\n entity_type: {entity_type}')
+
+        match field:
+            case QueryValueType.ID | QueryValueType.OPENALEX_ID:
+                return self.ENTITY_MAPPING[entity_type]().filter(openalex_id=idlist)
+            case QueryValueType.DOI:
+                return self.ENTITY_MAPPING[entity_type]().filter(doi=idlist)
+            case QueryValueType.PMID:
+                return self.ENTITY_MAPPING[entity_type]().filter(pmid=idlist)
+            case QueryValueType.ROR:
+                match entity_type:
+                    case SearchEntityType.WORK:
+                        return self.ENTITY_MAPPING[entity_type]().filter(institutions={'ror':idlist})
+                    case SearchEntityType.AUTHOR:
+                        return self.ENTITY_MAPPING[entity_type]().filter(affiliations={'institution':{'ror':idlist}})
+                    case SearchEntityType.PUBLISHER | SearchEntityType.INSTITUTION | SearchEntityType.FUNDER:
+                        return self.ENTITY_MAPPING[entity_type]().filter(ror=idlist)
+            case QueryValueType.ORCID:
+                return self.ENTITY_MAPPING[entity_type]().filter(orcid=idlist)
+            case QueryValueType.NAME:
+                return self.ENTITY_MAPPING[entity_type]().search(idlist)
+            case QueryValueType.ISSN:
+                match entity_type:
+                    case SearchEntityType.WORK:
+                        return self.ENTITY_MAPPING[entity_type]().filter(locations={"source":{"issn":idlist}})
+                    case SearchEntityType.SOURCE:
+                        return self.ENTITY_MAPPING[entity_type]().filter(issn=idlist)
+            case _:
+                print(f'Did not recognize field: {field} and/or entity_type: {entity_type}. Trying to return default query.')
+                # use the value for 'field' as the keyword for filter() arg, set to value idlist
+                # e.g. if field='openalex_id', then filter(openalex_id=idlist)
+                try:
+                    query = self.ENTITY_MAPPING[entity_type]().filter(**{field.value:idlist})
+                    return query
+                except Exception as e:
+                    print(f"Error constructing query: {e}")
+                    return None
+
+    def _search(self):
+        """
+        This function parses the search values, constructs the queries, and the retrieves the results.
+        It groups the queries by entity and field to be able to batch them into sets of 50 where possible.
+        """
 
         if not self._validate_search_values():
             raise ValueError("Search values are not valid")
 
-        searches:dict[str, dict[QueryValueType, list]] = defaultdict(lambda: defaultdict(list))
+        searches:dict[SearchEntityType, dict[QueryValueType, list]] = defaultdict(lambda: defaultdict(set))
         for search_value in self._search_values:
-            searches[search_value.entity.value][search_value.field].append(search_value.value)
-
+            searches[search_value.entity][search_value.field].add(search_value.value)
         queries = defaultdict(list)
         num_items = 0
         for entity_type, fields in searches.items():
-            print(f'entity_type: {entity_type}')
-            print(f'fields.items(): {fields.items()}')
             if not fields:
                 continue
             for field, values in fields.items():
+                values = list(values)
                 if field not in self.VALID_FIELDNAMES:
                     print(f"Invalid field name: {field}")
                     print(f'{entity_type} query will not be run for field {field} with value(s): {values}')
                     print(f'Note: valid field names are {self.VALID_FIELDNAMES}')
                     continue
                 if len(values) > 1:
-                    for batch in batched(values, 50):
-                        num_items += len(batch)
-                        idlist = "|".join(batch)
-                        print('idlist:', idlist)
-                        constructed_query = construct_query(idlist, field, entity_type)
-                        print(f'constructed_query: {constructed_query}')
-                        queries[entity_type+'s'].append(constructed_query)
+                    if field in [QueryValueType.ID, QueryValueType.OPENALEX_ID, QueryValueType.DOI, QueryValueType.ORCID, QueryValueType.ROR]:
+                        if len(values) > 50:
+                            for batch in batched(values, 50):
+                                num_items += len(batch)
+                                idlist = "|".join(batch)
+                                constructed_query = self._construct_query(idlist, field, entity_type)
+                                queries[entity_type.value+'s'].append(constructed_query)
+                        else:
+                            num_items += len(values)
+                            idlist = "|".join(values)
+                            constructed_query = self._construct_query(idlist, field, entity_type)
+                            queries[entity_type.value+'s'].append(constructed_query)
+                    else:
+                        for value in values:
+                            num_items += 1
+                            queries[entity_type.value+'s'].append(self._construct_query(value, field, entity_type))
                 else:
                     num_items += 1
-                    queries[entity_type+'s'].append(construct_query(values[0], field, entity_type))
+                    queries[entity_type.value+'s'].append(self._construct_query(values[0], field, entity_type))
 
         if not queries:
             print("No queries to run.")
             return
 
         print(f'Running {len(queries)} {"queries" if len(queries) > 1 else 'query'} for {num_items} requested items.')
-        print(queries)
         self._retrieve_queries(queries)
 
     def _retrieve_queries(self, queries: dict[str,list[BaseOpenAlex]]) -> None:
         for entity_type, querylist in queries.items():
             print(f'Retrieving {len(querylist)} {entity_type} queries.')
             for num, query in enumerate(querylist, start=1):
-                print(f'Running query {num}/{len(querylist)}')
-                print(query)
+                print(f'Running query {num}/{len(querylist)} for {entity_type}.')
                 if isinstance(query, dict):
                     self._results[entity_type][query['id']] = query
                     continue
-                for record in chain(*query.paginate(per_page=200)):
-                    print(record.get('id'))
+
+                print(f'Retrieving multiple {entity_type}. Limited to {self.max_results_per_query}.')
+                for record in chain(*query.paginate(per_page=self.results_per_page, n_max=self.max_results_per_query)):
                     self._results[entity_type][record['id']] = record

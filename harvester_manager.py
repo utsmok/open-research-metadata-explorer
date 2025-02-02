@@ -60,13 +60,37 @@ class HarvesterManager:
         else:
             raise ValueError(f"Cannot determine harvester for: {source}")
 
-    def add_search_values(self, entity_type: SearchEntityType, value_type: QueryValueType, values: list[str]) -> None:
+    def add_single_type_search_values(self, entity_type: SearchEntityType, value_type: QueryValueType, values: list[str]) -> None:
         """
-        Add search values to all enabled harvesters that can handle the given entity type.
-        The manager will make sure they are added correctly (i.e. as SearchValue objects with correct field values etc).
+        For a given entity and value type, add search values to all enabled harvesters that can handle the given entity type.
+        The manager will create the SearchValue instances based on the input.
         """
         # TODO: implement this -- map entity and value types to match the harvester's search fields etc
         for harvester_name, harvester in self.harvesters.items():
+            print(f"Adding search values to {harvester_name}")
+
             if entity_type in harvester.ENTITY_MAPPING:
                 search_values = [SearchValue(value, value_type, entity_type) for value in values]
                 harvester.search_values = search_values
+                print(f"Added {len(search_values)} search values to {harvester_name}")
+
+    def add_search_values(self, search_values: list[SearchValue]) -> None:
+        """
+        Add search values to all enabled harvesters.
+        """
+        if not search_values:
+            print("No search values provided")
+            return
+        for harvester_name, harvester in self.harvesters.items():
+            valid_values = list()
+            valid_entities = harvester.ENTITY_MAPPING.keys()
+            for entry in search_values:
+                for valid_type in valid_entities:
+                    if entry.entity is valid_type:
+                        valid_values.append(entry)
+                        break
+            if not valid_values:
+                print(f"No compatible search values received for {harvester_name}")
+                continue
+            harvester.search_values = valid_values
+            print(f"Added {len(valid_values)} search values to {harvester_name}")
